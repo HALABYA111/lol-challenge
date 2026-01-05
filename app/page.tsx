@@ -1,14 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { fetchPlayerStats, PlayerStats } from '@/lib/riotFetcher'
 import { supabase } from '@/lib/supabaseClient'
+import { fetchPlayerStats, PlayerStats } from '@/lib/riotFetcher'
 
 type Player = {
   id: string
   display_name: string
   riot_id: string
-  server: string
+  server: 'euw1' | 'eun1'
 }
 
 export default function Home() {
@@ -24,7 +24,7 @@ export default function Home() {
     setLoading(false)
   }
 
-  // Fetch Riot stats
+  // Fetch stats for all players
   const fetchStats = async () => {
     const newStats: Record<string, PlayerStats | null> = {}
     for (const player of players) {
@@ -44,33 +44,36 @@ export default function Home() {
 
   if (loading) return <p style={{ padding: 20 }}>Loading...</p>
 
-  const goToAdmin = () => {
-    const username = prompt('Admin username:')
-    const password = prompt('Admin password:')
-    if (username === 'admin' && password === 'halabya111') {
-      window.location.href = '/admin'
-    } else {
-      alert('Incorrect admin credentials!')
-    }
-  }
-
   return (
     <main style={{ padding: 20, maxWidth: 900, margin: '0 auto' }}>
       <h1>LoL Challenge – Players</h1>
+
+      {/* Refresh Stats */}
       <button
         onClick={fetchStats}
         style={{ marginBottom: 20, padding: '10px 16px', fontWeight: 'bold', cursor: 'pointer' }}
       >
         🔄 Refresh Stats
       </button>
+
+      {/* Admin login button */}
       <button
-        onClick={goToAdmin}
-        style={{ marginBottom: 20, padding: '10px 16px', fontWeight: 'bold', cursor: 'pointer', marginLeft: 10 }}
+        onClick={() => {
+          const username = prompt('Admin username:')
+          const password = prompt('Admin password:')
+          if (username === 'admin' && password === 'halabya111') {
+            window.location.href = '/admin'
+          } else {
+            alert('Incorrect credentials')
+          }
+        }}
+        style={{ marginLeft: 10, padding: '10px 16px', cursor: 'pointer' }}
       >
         Admin Login
       </button>
 
-      <table border={1} cellPadding={8} style={{ borderCollapse: 'collapse', width: '100%' }}>
+      {/* Table */}
+      <table border={1} cellPadding={8} style={{ borderCollapse: 'collapse', width: '100%', marginTop: 20 }}>
         <thead>
           <tr>
             <th>Player</th>
