@@ -1,61 +1,207 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import axios from 'axios'
 
-const RIOT_API_KEY = process.env.RIOT_API_KEY!
+// Riot API key from environment
+const RIOT_API_KEY = process.env.NEXT_PUBLIC_RIOT_API_KEY
 
-export async function GET(req: Request) {
+// Simple mapping of champion IDs to names (you can expand as needed)
+const championMap: Record<number, string> = {
+  1: 'Annie',
+  2: 'Olaf',
+  3: 'Galio',
+  4: 'Twisted Fate',
+  5: 'Xin Zhao',
+  6: 'Urgot',
+  7: 'LeBlanc',
+  8: 'Vladimir',
+  9: 'Fiddlesticks',
+  10: 'Kayle',
+  11: 'Master Yi',
+  12: 'Alistar',
+  13: 'Ryze',
+  14: 'Sion',
+  15: 'Sivir',
+  16: 'Soraka',
+  17: 'Teemo',
+  18: 'Tristana',
+  19: 'Warwick',
+  20: 'Nunu',
+  21: 'Miss Fortune',
+  22: 'Ashe',
+  23: 'Tryndamere',
+  24: 'Jax',
+  25: 'Morgana',
+  26: 'Zilean',
+  27: 'Singed',
+  28: 'Evelynn',
+  29: 'Twitch',
+  30: 'Karthus',
+  31: 'Cho\'Gath',
+  32: 'Amumu',
+  33: 'Rammus',
+  34: 'Anivia',
+  35: 'Shaco',
+  36: 'Dr. Mundo',
+  37: 'Sona',
+  38: 'Kassadin',
+  39: 'Irelia',
+  40: 'Janna',
+  41: 'Gangplank',
+  42: 'Corki',
+  43: 'Karma',
+  44: 'Taric',
+  45: 'Veigar',
+  48: 'Trundle',
+  50: 'Swain',
+  51: 'Caitlyn',
+  53: 'Blitzcrank',
+  54: 'Malphite',
+  55: 'Katarina',
+  56: 'Nocturne',
+  57: 'Maokai',
+  58: 'Renekton',
+  59: 'Jarvan IV',
+  60: 'Elise',
+  61: 'Orianna',
+  62: 'Wukong',
+  63: 'Brand',
+  64: 'Lee Sin',
+  67: 'Vayne',
+  68: 'Rumble',
+  69: 'Cassiopeia',
+  72: 'Skarner',
+  74: 'Heimerdinger',
+  75: 'Nasus',
+  76: 'Nidalee',
+  77: 'Udyr',
+  78: 'Poppy',
+  79: 'Gragas',
+  80: 'Pantheon',
+  81: 'Ezreal',
+  82: 'Mordekaiser',
+  83: 'Yorick',
+  84: 'Akali',
+  85: 'Kennen',
+  86: 'Garen',
+  89: 'Leona',
+  90: 'Malzahar',
+  91: 'Talon',
+  92: 'Riven',
+  96: 'Kog\'Maw',
+  98: 'Shen',
+  99: 'Lux',
+  101: 'Xerath',
+  102: 'Shyvana',
+  103: 'Ahri',
+  104: 'Graves',
+  105: 'Fizz',
+  106: 'Volibear',
+  107: 'Rengar',
+  110: 'Varus',
+  111: 'Nautilus',
+  112: 'Viktor',
+  113: 'Sejuani',
+  114: 'Fiora',
+  115: 'Ziggs',
+  117: 'Lulu',
+  119: 'Draven',
+  120: 'Hecarim',
+  121: 'Kha\'Zix',
+  122: 'Darius',
+  126: 'Jayce',
+  127: 'Lissandra',
+  131: 'Diana',
+  133: 'Quinn',
+  134: 'Syndra',
+  136: 'Aurelion Sol',
+  141: 'Kayn',
+  142: 'Zoe',
+  143: 'Zyra',
+  145: 'Kaisa',
+  150: 'Gnar',
+  154: 'Zac',
+  157: 'Yasuo',
+  161: 'Vel\'Koz',
+  163: 'Taliyah',
+  164: 'Camille',
+  201: 'Braum',
+  202: 'Jhin',
+  203: 'Kindred',
+  222: 'Jinx',
+  223: 'Tahm Kench',
+  234: 'Viego',
+  235: 'Senna',
+  236: 'Lucian',
+  238: 'Zed',
+  245: 'Ekko',
+  246: 'Qiyana',
+  254: 'Vi',
+  266: 'Aatrox',
+  267: 'Nami',
+  268: 'Azir',
+  350: 'Yuumi',
+  412: 'Thresh',
+  420: 'Illaoi',
+  421: 'Rek\'Sai',
+  427: 'Ivern',
+  555: 'Pyke',
+  711: 'Vex'
+}
+
+export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
-  const summonerName = searchParams.get('summonerName')
-  const region = searchParams.get('region') || 'euw1'
+  const riotId = searchParams.get('riotId')
+  const region = (searchParams.get('region') || 'euw1') as 'euw1' | 'eun1'
 
-  if (!summonerName) {
-    return NextResponse.json({ error: 'Missing summonerName' }, { status: 400 })
-  }
+  if (!riotId) return NextResponse.json({ error: 'riotId is required' }, { status: 400 })
 
   try {
-    // 1️⃣ Get summoner
+    const summonerName = riotId.split('#')[0]
+
+    // 1️⃣ Get summoner info
     const summonerRes = await axios.get(
-      `https://${region}.api.riotgames.com/lol/summoner/v4/summoners/by-name/${encodeURIComponent(summonerName)}`,
+      `https://${region}.api.riotgames.com/lol/summoner/v4/summoners/by-name/${summonerName}`,
       { headers: { 'X-Riot-Token': RIOT_API_KEY } }
     )
+    const { id, name } = summonerRes.data
 
-    const summonerId = summonerRes.data.id
-
-    // 2️⃣ Ranked stats
+    // 2️⃣ Get ranked stats
     const rankedRes = await axios.get(
-      `https://${region}.api.riotgames.com/lol/league/v4/entries/by-summoner/${summonerId}`,
+      `https://${region}.api.riotgames.com/lol/league/v4/entries/by-summoner/${id}`,
       { headers: { 'X-Riot-Token': RIOT_API_KEY } }
     )
+    const soloQueue = rankedRes.data.find((q: any) => q.queueType === 'RANKED_SOLO_5x5') || null
 
-    const solo = rankedRes.data.find((q: any) => q.queueType === 'RANKED_SOLO_5x5')
-
-    let tier = 'UNRANKED'
-    let rank = ''
-    let lp = 0
-    let wins = 0
-    let losses = 0
-    let winRate = 0
-
-    if (solo) {
-      tier = solo.tier
-      rank = solo.rank
-      lp = solo.leaguePoints
-      wins = solo.wins
-      losses = solo.losses
+    let tier = 'Unranked', rank = '', lp = 0, wins = 0, losses = 0, winRate = 0
+    if (soloQueue) {
+      tier = soloQueue.tier
+      rank = soloQueue.rank
+      lp = soloQueue.leaguePoints
+      wins = soloQueue.wins
+      losses = soloQueue.losses
       winRate = Math.round((wins / (wins + losses)) * 100)
     }
 
+    // 3️⃣ Get most played champion
+    const masteryRes = await axios.get(
+      `https://${region}.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-summoner/${id}`,
+      { headers: { 'X-Riot-Token': RIOT_API_KEY } }
+    )
+    const mostPlayedChampionId = masteryRes.data[0]?.championId || 0
+    const mostPlayedChampion = championMap[mostPlayedChampionId] || 'Unknown'
+
     return NextResponse.json({
+      summonerName: name,
       tier,
       rank,
       lp,
       wins,
       losses,
-      winRate
+      winRate,
+      mostPlayedChampion
     })
-
-  } catch (error) {
-    console.error(error)
+  } catch (err) {
+    console.error('Error fetching Riot data:', err)
     return NextResponse.json({ error: 'Failed to fetch Riot data' }, { status: 500 })
   }
 }

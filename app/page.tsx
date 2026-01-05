@@ -16,7 +16,7 @@ export default function Home() {
   const [stats, setStats] = useState<Record<string, PlayerStats | null>>({})
   const [loading, setLoading] = useState(true)
 
-  // Fetch players from Supabase
+  // Fetch players
   const fetchPlayers = async () => {
     setLoading(true)
     const { data } = await supabase.from('players').select('*')
@@ -48,7 +48,6 @@ export default function Home() {
     <main style={{ padding: 20, maxWidth: 900, margin: '0 auto' }}>
       <h1>LoL Challenge – Players</h1>
 
-      {/* Refresh Stats */}
       <button
         onClick={fetchStats}
         style={{ marginBottom: 20, padding: '10px 16px', fontWeight: 'bold', cursor: 'pointer' }}
@@ -56,24 +55,7 @@ export default function Home() {
         🔄 Refresh Stats
       </button>
 
-      {/* Admin login button */}
-      <button
-        onClick={() => {
-          const username = prompt('Admin username:')
-          const password = prompt('Admin password:')
-          if (username === 'admin' && password === 'halabya111') {
-            window.location.href = '/admin'
-          } else {
-            alert('Incorrect credentials')
-          }
-        }}
-        style={{ marginLeft: 10, padding: '10px 16px', cursor: 'pointer' }}
-      >
-        Admin Login
-      </button>
-
-      {/* Table */}
-      <table border={1} cellPadding={8} style={{ borderCollapse: 'collapse', width: '100%', marginTop: 20 }}>
+      <table border={1} cellPadding={8} style={{ borderCollapse: 'collapse', width: '100%' }}>
         <thead>
           <tr>
             <th>Player</th>
