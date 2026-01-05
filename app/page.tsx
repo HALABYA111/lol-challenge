@@ -8,7 +8,7 @@ type Player = {
   id: string
   display_name: string
   riot_id: string
-  server: string
+  server: 'euw1' | 'eun1'
 }
 
 export default function Home() {
@@ -16,7 +16,7 @@ export default function Home() {
   const [stats, setStats] = useState<Record<string, PlayerStats | null>>({})
   const [loading, setLoading] = useState(true)
 
-  // Form state for adding players
+  // Form state
   const [riotId, setRiotId] = useState('')
   const [server, setServer] = useState<'euw1' | 'eun1'>('euw1')
   const [adding, setAdding] = useState(false)
@@ -24,12 +24,17 @@ export default function Home() {
   // Fetch players from Supabase
   const fetchPlayers = async () => {
     setLoading(true)
-    const { data } = await supabase.from('players').select('*')
-    setPlayers(data || [])
+    const { data, error } = await supabase.from('players').select('*')
+    if (error) {
+      console.error('Error fetching players:', error)
+      setPlayers([])
+    } else {
+      setPlayers(data ?? [])
+    }
     setLoading(false)
   }
 
-  // Fetch Riot stats for all players
+  // Fetch Riot stats
   const fetchStats = async () => {
     const newStats: Record<string, PlayerStats | null> = {}
     for (const player of players) {
@@ -39,7 +44,7 @@ export default function Home() {
     setStats(newStats)
   }
 
-  // Add a player via form
+  // Add player from form
   const addPlayer = async () => {
     if (!riotId.includes('#')) {
       alert('Riot ID must be like Name#TAG')
@@ -48,24 +53,27 @@ export default function Home() {
 
     setAdding(true)
 
-    const { data, error } = await supabase.from('players').insert({
-      display_name: riotId.split('#')[0],
-      riot_id: riotId,
-      server
-    })
+    try {
+      const { data, error } = await supabase
+        .from('players')
+        .insert({
+          display_name: riotId.split('#')[0],
+          riot_id: riotId,
+          server
+        })
+        .select()
 
-    if (error) {
-      alert('Error adding player: ' + error.message)
-      setAdding(false)
-      return
-    }
-
-    await fetchPlayers()
-
-    // Immediately fetch stats for the new player
-    if (data && data[0]) {
-      const newStat = await fetchPlayerStats(data[0].riot_id, data[0].server)
-      setStats(prev => ({ ...prev, [data[0].id]: newStat }))
+      if (error) {
+        console.error('Error adding player:', error)
+        alert('Error adding player')
+      } else if (data && data.length > 0) {
+        const newPlayer = data[0] as Player
+        const newStat = await fetchPlayerStats(newPlayer.riot_id, newPlayer.server)
+        setStats(prev => ({ ...prev, [newPlayer.id]: newStat }))
+        setPlayers(prev => [...prev, newPlayer])
+      }
+    } catch (err) {
+      console.error('Unexpected error:', err)
     }
 
     setRiotId('')
@@ -91,7 +99,14 @@ export default function Home() {
       <h1>LoL Challenge – Players</h1>
 
       {/* ADD PLAYER FORM */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 20, alignItems: 'center' }}>
+      <div
+        style={{
+          display: 'flex',
+          gap: 10,
+          marginBottom: 20,
+          alignItems: 'center'
+        }}
+      >
         <input
           type="text"
           placeholder="Riot ID (Name#TAG)"
@@ -99,6 +114,7 @@ export default function Home() {
           onChange={e => setRiotId(e.target.value)}
           style={{ padding: 8, flex: 1 }}
         />
+
         <select
           value={server}
           onChange={e => setServer(e.target.value as 'euw1' | 'eun1')}
@@ -107,10 +123,14 @@ export default function Home() {
           <option value="euw1">EUW</option>
           <option value="eun1">EUNE</option>
         </select>
+
         <button
           onClick={addPlayer}
           disabled={adding}
-          style={{ padding: '8px 14px', cursor: 'pointer' }}
+          style={{
+            padding: '8px 14px',
+            cursor: 'pointer'
+          }}
         >
           {adding ? 'Adding...' : 'Add Player'}
         </button>
@@ -119,13 +139,22 @@ export default function Home() {
       {/* REFRESH BUTTON */}
       <button
         onClick={fetchStats}
-        style={{ marginBottom: 20, padding: '10px 16px', fontWeight: 'bold', cursor: 'pointer' }}
+        style={{
+          marginBottom: 20,
+          padding: '10px 16px',
+          fontWeight: 'bold',
+          cursor: 'pointer'
+        }}
       >
         🔄 Refresh Stats
       </button>
 
       {/* PLAYERS TABLE */}
-      <table border={1} cellPadding={8} style={{ borderCollapse: 'collapse', width: '100%' }}>
+      <table
+        border={1}
+        cellPadding={8}
+        style={{ borderCollapse: 'collapse', width: '100%' }}
+      >
         <thead>
           <tr>
             <th>Player</th>
