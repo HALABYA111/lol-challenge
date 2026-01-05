@@ -2,27 +2,37 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
-import { useRouter } from 'next/navigation'
+import { fetchPlayerStats, PlayerStats } from '@/lib/riotFetcher'
 
 type Player = {
   id: string
   display_name: string
   riot_id: string
-  server: 'euw1' | 'eun1'
+  server: string
 }
 
 export default function AdminPage() {
-  const router = useRouter()
   const [players, setPlayers] = useState<Player[]>([])
+  const [stats, setStats] = useState<Record<string, PlayerStats | null>>({})
+  const [loading, setLoading] = useState(true)
   const [riotId, setRiotId] = useState('')
   const [server, setServer] = useState<'euw1' | 'eun1'>('euw1')
   const [adding, setAdding] = useState(false)
-  const [loggedIn, setLoggedIn] = useState(false)
-  const [password, setPassword] = useState('')
 
   const fetchPlayers = async () => {
+    setLoading(true)
     const { data } = await supabase.from('players').select('*')
-    setPlayers((data as Player[]) || [])
+    setPlayers(data || [])
+    setLoading(false)
+  }
+
+  const fetchStats = async () => {
+    const newStats: Record<string, PlayerStats | null> = {}
+    for (const player of players) {
+      const stat = await fetchPlayerStats(player.riot_id, player.server)
+      newStats[player.id] = stat
+    }
+    setStats(newStats)
   }
 
   const addPlayer = async () => {
@@ -30,108 +40,111 @@ export default function AdminPage() {
       alert('Riot ID must be like Name#TAG')
       return
     }
+
     setAdding(true)
-    const { error } = await supabase.from('players').insert({
+
+    const { data, error } = await supabase.from('players').insert({
       display_name: riotId.split('#')[0],
       riot_id: riotId,
       server
-    })
+    }).select() // important to use select() to get returned row
+
     if (error) {
       alert('Error adding player: ' + error.message)
-    } else {
-      alert('Player added!')
-      setRiotId('')
-      fetchPlayers()
+      setAdding(false)
+      return
     }
+
+    if (data && data[0]) {
+      const newStat = await fetchPlayerStats(data[0].riot_id, data[0].server)
+      setStats(prev => ({ ...prev, [data[0].id]: newStat }))
+    }
+
+    setRiotId('')
     setAdding(false)
+    fetchPlayers()
   }
 
   const removePlayer = async (id: string) => {
-    const { error } = await supabase.from('players').delete().eq('id', id)
-    if (error) {
-      alert('Error removing player: ' + error.message)
-    } else {
-      fetchPlayers()
-    }
+    await supabase.from('players').delete().eq('id', id)
+    fetchPlayers()
+    setStats(prev => {
+      const copy = { ...prev }
+      delete copy[id]
+      return copy
+    })
   }
 
-  const handleLogin = () => {
-    if (password === 'halabya111') {
-      setLoggedIn(true)
-      fetchPlayers()
-    } else {
-      alert('Incorrect password')
-    }
-  }
+  useEffect(() => {
+    fetchPlayers()
+  }, [])
 
-  if (!loggedIn) {
-    return (
-      <main style={{ padding: 20, maxWidth: 400, margin: '0 auto' }}>
-        <h1>Admin Login</h1>
-        <input
-          type="password"
-          placeholder="Enter admin password"
-          value={password}
-          onChange={e => setPassword(e.target.value)}
-          style={{ padding: 8, width: '100%', marginBottom: 10 }}
-        />
-        <button onClick={handleLogin} style={{ padding: '8px 14px', cursor: 'pointer' }}>
-          Login
-        </button>
-      </main>
-    )
-  }
+  useEffect(() => {
+    if (players.length > 0) fetchStats()
+  }, [players])
+
+  if (loading) return <p style={{ padding: 20 }}>Loading...</p>
 
   return (
     <main style={{ padding: 20, maxWidth: 900, margin: '0 auto' }}>
-      <h1>Admin Panel</h1>
+      <h1>Admin Panel – LoL Challenge</h1>
 
-      {/* ADD PLAYER */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
         <input
+          type="text"
+          placeholder="Riot ID (Name#TAG)"
           value={riotId}
           onChange={e => setRiotId(e.target.value)}
-          placeholder="Riot ID (Name#TAG)"
-          style={{ flex: 1, padding: 8 }}
+          style={{ padding: 8, flex: 1 }}
         />
-        <select value={server} onChange={e => setServer(e.target.value as any)}>
+        <select
+          value={server}
+          onChange={e => setServer(e.target.value as 'euw1' | 'eun1')}
+          style={{ padding: 8 }}
+        >
           <option value="euw1">EUW</option>
           <option value="eun1">EUNE</option>
         </select>
-        <button onClick={addPlayer} disabled={adding}>
-          {adding ? 'Adding...' : 'Add'}
+        <button onClick={addPlayer} disabled={adding} style={{ padding: '8px 14px' }}>
+          {adding ? 'Adding...' : 'Add Player'}
         </button>
       </div>
 
-      {/* PLAYER TABLE */}
-      <table border={1} cellPadding={8} width="100%">
+      <table border={1} cellPadding={8} style={{ borderCollapse: 'collapse', width: '100%' }}>
         <thead>
           <tr>
             <th>Player</th>
             <th>Riot ID</th>
             <th>Server</th>
-            <th>Actions</th>
+            <th>Rank</th>
+            <th>LP</th>
+            <th>Win Rate</th>
+            <th>Most Played Champion</th>
+            <th>Remove</th>
           </tr>
         </thead>
         <tbody>
-          {players.map(p => (
-            <tr key={p.id}>
-              <td>{p.display_name}</td>
-              <td>{p.riot_id}</td>
-              <td>{p.server?.toUpperCase()}</td>
-              <td>
-                <button onClick={() => removePlayer(p.id)} style={{ cursor: 'pointer' }}>
-                  Remove
-                </button>
-              </td>
-            </tr>
-          ))}
+          {players.map(player => {
+            const s = stats[player.id]
+            return (
+              <tr key={player.id}>
+                <td>{player.display_name}</td>
+                <td>{player.riot_id}</td>
+                <td>{player.server.toUpperCase()}</td>
+                <td>{s ? `${s.tier} ${s.rank}` : '—'}</td>
+                <td>{s?.lp ?? '—'}</td>
+                <td>{s ? `${s.winRate}%` : '—'}</td>
+                <td>{s?.mostPlayedChampion ?? '—'}</td>
+                <td>
+                  <button onClick={() => removePlayer(player.id)} style={{ cursor: 'pointer' }}>
+                    ❌
+                  </button>
+                </td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
-
-      <button onClick={() => setLoggedIn(false)} style={{ marginTop: 20 }}>
-        Logout
-      </button>
     </main>
   )
 }
