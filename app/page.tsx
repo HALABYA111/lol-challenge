@@ -8,7 +8,7 @@ type Player = {
   id: string
   display_name: string
   riot_id: string
-  server: string
+  server: 'euw1' | 'eun1'
 }
 
 export default function Home() {
@@ -16,32 +16,30 @@ export default function Home() {
   const [stats, setStats] = useState<Record<string, PlayerStats | null>>({})
   const [loading, setLoading] = useState(true)
 
-  // form state
   const [riotId, setRiotId] = useState('')
   const [server, setServer] = useState<'euw1' | 'eun1'>('euw1')
   const [adding, setAdding] = useState(false)
 
-  // Fetch players from Supabase
   const fetchPlayers = async () => {
     setLoading(true)
     const { data } = await supabase.from('players').select('*')
-    setPlayers(data || [])
+    setPlayers((data as Player[]) || [])
     setLoading(false)
   }
 
-  // Fetch Riot stats
   const fetchStats = async () => {
     const newStats: Record<string, PlayerStats | null> = {}
 
     for (const player of players) {
-      const stat = await fetchPlayerStats(player.riot_id, player.server)
-      newStats[player.id] = stat
+      newStats[player.id] = await fetchPlayerStats(
+        player.riot_id,
+        player.server
+      )
     }
 
     setStats(newStats)
   }
 
-  // Add player from form
   const addPlayer = async () => {
     if (!riotId.includes('#')) {
       alert('Riot ID must be like Name#TAG')
@@ -61,16 +59,12 @@ export default function Home() {
     fetchPlayers()
   }
 
-  // Initial load
   useEffect(() => {
     fetchPlayers()
   }, [])
 
-  // Fetch stats when players change
   useEffect(() => {
-    if (players.length > 0) {
-      fetchStats()
-    }
+    if (players.length) fetchStats()
   }, [players])
 
   if (loading) return <p style={{ padding: 20 }}>Loading...</p>
@@ -79,45 +73,29 @@ export default function Home() {
     <main style={{ padding: 20, maxWidth: 900, margin: '0 auto' }}>
       <h1>LoL Challenge – Players</h1>
 
-      {/* ADD PLAYER FORM */}
-      <div
-        style={{
-          display: 'flex',
-          gap: 10,
-          marginBottom: 20,
-          alignItems: 'center'
-        }}
-      >
+      {/* ADD PLAYER */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
         <input
-          type="text"
-          placeholder="Riot ID (Name#TAG)"
           value={riotId}
           onChange={e => setRiotId(e.target.value)}
-          style={{ padding: 8, flex: 1 }}
+          placeholder="Riot ID (Name#TAG)"
+          style={{ flex: 1, padding: 8 }}
         />
 
         <select
           value={server}
-          onChange={e => setServer(e.target.value as 'euw1' | 'eun1')}
-          style={{ padding: 8 }}
+          onChange={e => setServer(e.target.value as any)}
         >
           <option value="euw1">EUW</option>
           <option value="eun1">EUNE</option>
         </select>
 
-        <button
-          onClick={addPlayer}
-          disabled={adding}
-          style={{
-            padding: '8px 14px',
-            cursor: 'pointer'
-          }}
-        >
-          {adding ? 'Adding...' : 'Add Player'}
+        <button onClick={addPlayer} disabled={adding}>
+          {adding ? 'Adding...' : 'Add'}
         </button>
       </div>
 
-      {/* REFRESH BUTTON */}
+      {/* REFRESH */}
       <button
         onClick={fetchStats}
         style={{
@@ -131,11 +109,7 @@ export default function Home() {
       </button>
 
       {/* TABLE */}
-      <table
-        border={1}
-        cellPadding={8}
-        style={{ borderCollapse: 'collapse', width: '100%' }}
-      >
+      <table border={1} cellPadding={8} width="100%">
         <thead>
           <tr>
             <th>Player</th>
@@ -144,18 +118,24 @@ export default function Home() {
             <th>Rank</th>
             <th>LP</th>
             <th>Win Rate</th>
-            <th>Most Played Champion</th>
+            <th>Most Played Champ</th>
           </tr>
         </thead>
         <tbody>
-          {players.map(player => {
-            const s = stats[player.id]
+          {players.map(p => {
+            const s = stats[p.id]
             return (
-              <tr key={player.id}>
-                <td>{player.display_name}</td>
-                <td>{player.riot_id}</td>
-                <td>{player.server.toUpperCase()}</td>
-                <td>{s ? `${s.tier} ${s.rank}` : '—'}</td>
+              <tr key={p.id}>
+                <td>{p.display_name}</td>
+                <td>{p.riot_id}</td>
+                <td>{p.server?.toUpperCase()}</td>
+                <td>
+                  {s
+                    ? s.tier === 'Unranked'
+                      ? 'Unranked'
+                      : `${s.tier} ${s.rank}`
+                    : '—'}
+                </td>
                 <td>{s?.lp ?? '—'}</td>
                 <td>{s ? `${s.winRate}%` : '—'}</td>
                 <td>{s?.mostPlayedChampion ?? '—'}</td>
