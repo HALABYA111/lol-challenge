@@ -63,3 +63,4 @@ export async function fetchPlayerStats(summonerName: string, region = REGION): P
     return null
   }
 }
+

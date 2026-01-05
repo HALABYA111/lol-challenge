@@ -16,6 +16,11 @@ export default function Home() {
   const [stats, setStats] = useState<Record<string, PlayerStats | null>>({})
   const [loading, setLoading] = useState(true)
 
+  // form state
+  const [riotId, setRiotId] = useState('')
+  const [server, setServer] = useState<'euw1' | 'eun1'>('euw1')
+  const [adding, setAdding] = useState(false)
+
   // Fetch players from Supabase
   const fetchPlayers = async () => {
     setLoading(true)
@@ -24,39 +29,113 @@ export default function Home() {
     setLoading(false)
   }
 
-  // Fetch Riot stats for all players
+  // Fetch Riot stats
   const fetchStats = async () => {
     const newStats: Record<string, PlayerStats | null> = {}
+
     for (const player of players) {
       const stat = await fetchPlayerStats(player.riot_id, player.server)
       newStats[player.id] = stat
     }
+
     setStats(newStats)
+  }
+
+  // Add player from form
+  const addPlayer = async () => {
+    if (!riotId.includes('#')) {
+      alert('Riot ID must be like Name#TAG')
+      return
+    }
+
+    setAdding(true)
+
+    await supabase.from('players').insert({
+      display_name: riotId.split('#')[0],
+      riot_id: riotId,
+      server
+    })
+
+    setRiotId('')
+    setAdding(false)
+    fetchPlayers()
   }
 
   // Initial load
   useEffect(() => {
-    const load = async () => {
-      await fetchPlayers()
-    }
-    load()
+    fetchPlayers()
   }, [])
 
-  // When players list updates, fetch stats
+  // Fetch stats when players change
   useEffect(() => {
     if (players.length > 0) {
       fetchStats()
     }
   }, [players])
 
-  if (loading) return <p>Loading...</p>
+  if (loading) return <p style={{ padding: 20 }}>Loading...</p>
 
   return (
-    <main style={{ padding: 20 }}>
+    <main style={{ padding: 20, maxWidth: 900, margin: '0 auto' }}>
       <h1>LoL Challenge – Players</h1>
-      <button onClick={fetchStats} style={{ marginBottom: 20 }}>Refresh Stats</button>
 
-      <table border={1} cellPadding={5} style={{ borderCollapse: 'collapse' }}>
+      {/* ADD PLAYER FORM */}
+      <div
+        style={{
+          display: 'flex',
+          gap: 10,
+          marginBottom: 20,
+          alignItems: 'center'
+        }}
+      >
+        <input
+          type="text"
+          placeholder="Riot ID (Name#TAG)"
+          value={riotId}
+          onChange={e => setRiotId(e.target.value)}
+          style={{ padding: 8, flex: 1 }}
+        />
+
+        <select
+          value={server}
+          onChange={e => setServer(e.target.value as 'euw1' | 'eun1')}
+          style={{ padding: 8 }}
+        >
+          <option value="euw1">EUW</option>
+          <option value="eun1">EUNE</option>
+        </select>
+
+        <button
+          onClick={addPlayer}
+          disabled={adding}
+          style={{
+            padding: '8px 14px',
+            cursor: 'pointer'
+          }}
+        >
+          {adding ? 'Adding...' : 'Add Player'}
+        </button>
+      </div>
+
+      {/* REFRESH BUTTON */}
+      <button
+        onClick={fetchStats}
+        style={{
+          marginBottom: 20,
+          padding: '10px 16px',
+          fontWeight: 'bold',
+          cursor: 'pointer'
+        }}
+      >
+        🔄 Refresh Stats
+      </button>
+
+      {/* TABLE */}
+      <table
+        border={1}
+        cellPadding={8}
+        style={{ borderCollapse: 'collapse', width: '100%' }}
+      >
         <thead>
           <tr>
             <th>Player</th>
@@ -75,11 +154,11 @@ export default function Home() {
               <tr key={player.id}>
                 <td>{player.display_name}</td>
                 <td>{player.riot_id}</td>
-                <td>{player.server}</td>
-                <td>{s ? `${s.tier} ${s.rank}` : 'Loading...'}</td>
-                <td>{s?.lp ?? 'Loading...'}</td>
-                <td>{s ? `${s.winRate}%` : 'Loading...'}</td>
-                <td>{s?.mostPlayedChampion ?? 'Loading...'}</td>
+                <td>{player.server.toUpperCase()}</td>
+                <td>{s ? `${s.tier} ${s.rank}` : '—'}</td>
+                <td>{s?.lp ?? '—'}</td>
+                <td>{s ? `${s.winRate}%` : '—'}</td>
+                <td>{s?.mostPlayedChampion ?? '—'}</td>
               </tr>
             )
           })}
